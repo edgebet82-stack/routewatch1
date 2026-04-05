@@ -1,0 +1,72 @@
+@import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+
+:root {
+  --green-dark: #0a1f0a;
+  --green-mid: #1a3a1a;
+  --green-light: #2d5a2d;
+  --gold: #d4a017;
+  --gold-light: #f0c040;
+  --red: #c0392b;
+  --red-light: #e74c3c;
+}
+
+body {
+  background-color: var(--green-dark);
+  color: #e8f5e8;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+  overflow: hidden;
+}
+
+#root {
+  height: 100vh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #0a1f0a; }
+::-webkit-scrollbar-thumb { background: #2d5a2d; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #d4a017; }
+
+.leaflet-container { background: #0a1f0a; }
+.leaflet-tile-pane { filter: saturate(0.85) brightness(0.85); }
+
+@keyframes pulse-gold {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(212,160,23,0.7); }
+  50% { box-shadow: 0 0 0 14px rgba(212,160,23,0); }
+}
+@keyframes pulse-red {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(192,57,43,0.7); }
+  50% { box-shadow: 0 0 0 14px rgba(192,57,43,0); }
+}
+@keyframes pulse-green {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(45,160,45,0.7); }
+  50% { box-shadow: 0 0 0 14px rgba(45,160,45,0); }
+}
+
+.marker-pulse-gold { animation: pulse-gold 2s infinite; }
+.marker-pulse-red  { animation: pulse-red  2s infinite; }
+.marker-pulse-green{ animation: pulse-green 2s infinite; }
+
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+.spin-slow { animation: spin-slow 3s linear infinite; }
+
+.glow-gold  { text-shadow: 0 0 10px rgba(212,160,23,0.9); }
+.glow-green { text-shadow: 0 0 10px rgba(45,200,45,0.9); }
+.glow-red   { text-shadow: 0 0 10px rgba(231,76,60,0.9); }
+
+.card-hover {
+  transition: all 0.2s ease;
+}
+.card-hover:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px rgba(212,160,23,0.2);
+}
