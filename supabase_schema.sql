@@ -17,16 +17,14 @@ CREATE TABLE IF NOT EXISTS packages (
   dest_label       TEXT,
   current_lat      FLOAT NOT NULL,
   current_lng      FLOAT NOT NULL,
-  status           TEXT DEFAULT 'processing'
-                   CHECK (status IN ('processing','in_transit','delayed','delivered')),
+  status           TEXT DEFAULT 'processing',
   eta              TEXT,
   driver_name      TEXT DEFAULT 'Unassigned',
-  vehicle          TEXT DEFAULT '—',
-  weight           TEXT DEFAULT '—',
-  contents         TEXT DEFAULT '—',
-  priority         TEXT DEFAULT 'standard'
-                   CHECK (priority IN ('standard','express','overnight')),
-  progress         INT DEFAULT 0 CHECK (progress BETWEEN 0 AND 100),
+  vehicle          TEXT DEFAULT '-',
+  weight           TEXT DEFAULT '-',
+  contents         TEXT DEFAULT '-',
+  priority         TEXT DEFAULT 'standard',
+  progress         INT DEFAULT 0,
   created_at       TIMESTAMPTZ DEFAULT NOW(),
   updated_at       TIMESTAMPTZ DEFAULT NOW()
 );
@@ -57,37 +55,33 @@ CREATE TRIGGER set_updated_at
 ALTER TABLE packages         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE position_updates ENABLE ROW LEVEL SECURITY;
 
--- Businesses (authenticated users) can see and edit all packages
-CREATE POLICY "Business full access" ON packages
-  FOR ALL USING (auth.role() = 'authenticated');
-
--- Customers (anon) can read packages by tracking number only
-CREATE POLICY "Customer read by tracking" ON packages
+-- Allow anyone to read packages
+CREATE POLICY "Public read packages" ON packages
   FOR SELECT USING (true);
 
--- Anyone can read activity log
-CREATE POLICY "Read position_updates" ON position_updates
+-- Allow anyone to insert/update packages
+CREATE POLICY "Public write packages" ON packages
+  FOR ALL USING (true);
+
+-- Allow anyone to read position_updates
+CREATE POLICY "Public read updates" ON position_updates
   FOR SELECT USING (true);
 
--- Only authenticated users can insert activity
-CREATE POLICY "Auth insert position_updates" ON position_updates
-  FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+-- Allow anyone to insert position_updates
+CREATE POLICY "Public insert updates" ON position_updates
+  FOR INSERT WITH CHECK (true);
 
--- Enable real-time on both tables
-ALTER PUBLICATION supabase_realtime ADD TABLE packages;
-ALTER PUBLICATION supabase_realtime ADD TABLE position_updates;
-
--- ── Sample seed data (optional – delete if not needed) ───────────────────────
+-- Sample seed data
 INSERT INTO packages (
   tracking_number, customer_name, customer_address,
   origin_lat, origin_lng, origin_label,
-  dest_lat,   dest_lng,   dest_label,
+  dest_lat, dest_lng, dest_label,
   current_lat, current_lng,
   status, eta, driver_name, vehicle, weight, contents, priority, progress
 ) VALUES
 (
   'TRK-9842-XL', 'James Rivera', '842 Oak Ave, Chicago, IL',
-  41.8827, -87.6233, 'Warehouse A – Chicago',
+  41.8827, -87.6233, 'Warehouse A - Chicago',
   41.9742, -87.9073, '842 Oak Ave, Elk Grove',
   41.9212, -87.7400,
   'in_transit', 'Today, 3:45 PM', 'Marcus T.', 'Van #07',
@@ -95,7 +89,7 @@ INSERT INTO packages (
 ),
 (
   'TRK-3371-MX', 'Sophia Chen', '19 Maple St, Naperville, IL',
-  41.8827, -87.6233, 'Warehouse A – Chicago',
+  41.8827, -87.6233, 'Warehouse A - Chicago',
   41.7508, -88.1535, '19 Maple St, Naperville',
   41.7890, -87.9800,
   'delayed', 'Today, 5:30 PM', 'DeShawn K.', 'Truck #12',
@@ -103,7 +97,7 @@ INSERT INTO packages (
 ),
 (
   'TRK-7712-QR', 'Daniela Moreno', '305 Lakeview Dr, Evanston, IL',
-  41.8827, -87.6233, 'Warehouse A – Chicago',
+  41.8827, -87.6233, 'Warehouse A - Chicago',
   42.0451, -87.6877, '305 Lakeview Dr, Evanston',
   42.0451, -87.6877,
   'delivered', 'Delivered at 12:20 PM', 'Priya N.', 'Van #03',
@@ -112,8 +106,8 @@ INSERT INTO packages (
 
 INSERT INTO position_updates (package_id, message) VALUES
 ((SELECT id FROM packages WHERE tracking_number='TRK-9842-XL'), 'Package picked up from Warehouse A'),
-((SELECT id FROM packages WHERE tracking_number='TRK-9842-XL'), 'In transit – highway I-90 W'),
+((SELECT id FROM packages WHERE tracking_number='TRK-9842-XL'), 'In transit - highway I-90 W'),
 ((SELECT id FROM packages WHERE tracking_number='TRK-3371-MX'), 'Package picked up from Warehouse A'),
-((SELECT id FROM packages WHERE tracking_number='TRK-3371-MX'), 'Traffic delay on I-55 – approx. 45 min'),
+((SELECT id FROM packages WHERE tracking_number='TRK-3371-MX'), 'Traffic delay on I-55 - approx. 45 min'),
 ((SELECT id FROM packages WHERE tracking_number='TRK-7712-QR'), 'Package picked up from Warehouse A'),
-((SELECT id FROM packages WHERE tracking_number='TRK-7712-QR'), 'Successfully delivered – signed by D. Moreno');
+((SELECT id FROM packages WHERE tracking_number='TRK-7712-QR'), 'Successfully delivered - signed by D. Moreno');
