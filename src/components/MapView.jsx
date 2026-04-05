@@ -82,7 +82,37 @@ function FlyTo({ pkg }) {
   return null;
 }
 
-export default function MapView({ packages, selectedPkg, onSelectPkg }) {
+function createDriverPinIcon(name) {
+  const initials = name ? name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase() : "DR";
+  return L.divIcon({
+    className: "",
+    html: `
+      <div style="position:relative;">
+        <div style="
+          width:38px;height:38px;
+          background:#27ae60;
+          border:3px solid white;
+          border-radius:50%;
+          display:flex;align-items:center;justify-content:center;
+          font-size:13px;font-weight:700;color:white;
+          box-shadow:0 0 14px rgba(39,174,96,0.9);
+          font-family:sans-serif;
+        ">${initials}</div>
+        <div style="
+          position:absolute;top:-18px;left:50%;transform:translateX(-50%);
+          background:rgba(10,31,10,0.9);color:#27ae60;
+          font-size:9px;font-weight:700;white-space:nowrap;
+          padding:2px 5px;border-radius:4px;
+          border:1px solid #27ae6055;font-family:sans-serif;
+        ">${name || "Driver"}</div>
+      </div>`,
+    iconSize: [38, 38],
+    iconAnchor: [19, 19],
+    popupAnchor: [0, -24],
+  });
+}
+
+export default function MapView({ packages, selectedPkg, onSelectPkg, drivers = [] }) {
   const center = [41.88, -87.85];
 
   return (
@@ -107,6 +137,25 @@ export default function MapView({ packages, selectedPkg, onSelectPkg }) {
       />
 
       {selectedPkg && <FlyTo pkg={selectedPkg} />}
+
+      {/* Live driver pins */}
+      {drivers.filter(d => d.status === "active" && d.lat && d.lng).map((driver) => (
+        <Marker
+          key={driver.user_id}
+          position={[driver.lat, driver.lng]}
+          icon={createDriverPinIcon(driver.name)}
+        >
+          <Popup>
+            <div style={{ background: "#1a3a1a", color: "#e8f5e8", padding: "8px", borderRadius: 6, minWidth: 160 }}>
+              <div style={{ color: "#27ae60", fontWeight: 700, marginBottom: 4 }}>🚚 {driver.name || "Driver"}</div>
+              <div style={{ color: "#9ca3af", fontSize: 11 }}>{driver.email}</div>
+              <div style={{ color: "#6b7280", fontSize: 11, marginTop: 2 }}>
+                Last seen: {new Date(driver.last_seen).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              </div>
+            </div>
+          </Popup>
+        </Marker>
+      ))}
 
       {packages.map((pkg) => {
         const cfg = STATUS_CONFIG[pkg.status];

@@ -74,6 +74,38 @@ export async function addPositionUpdate(packageId, message) {
   if (error) throw error;
 }
 
+// ─── Drivers (live GPS tracking) ──────────────────────────────────────────────
+
+export async function upsertDriverLocation(userId, email, name, lat, lng) {
+  const { error } = await supabase
+    .from("drivers")
+    .upsert(
+      { user_id: userId, email, name, lat, lng, status: "active", last_seen: new Date().toISOString() },
+      { onConflict: "user_id" }
+    );
+  if (error) throw error;
+}
+
+export async function setDriverOffline(userId) {
+  await supabase.from("drivers").update({ status: "offline" }).eq("user_id", userId);
+}
+
+export async function fetchDrivers() {
+  const { data, error } = await supabase
+    .from("drivers")
+    .select("*")
+    .order("last_seen", { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export function subscribeToDrivers(callback) {
+  return supabase
+    .channel("drivers-changes")
+    .on("postgres_changes", { event: "*", schema: "public", table: "drivers" }, callback)
+    .subscribe();
+}
+
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 export async function signIn(email, password) {
