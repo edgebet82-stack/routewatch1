@@ -135,7 +135,7 @@ function UpdateLog({ pkg }) {
   );
 }
 
-export default function Sidebar({ packages, selectedPkg, onSelectPkg, view, onViewChange }) {
+export default function Sidebar({ packages, selectedPkg, onSelectPkg, view, onViewChange, loading, isReal }) {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
 
@@ -147,12 +147,25 @@ export default function Sidebar({ packages, selectedPkg, onSelectPkg, view, onVi
     return matchSearch && matchFilter;
   });
 
+  // Calculate real-time stats from packages array
+  const counts = {
+    total: packages.length,
+    in_transit: packages.filter(p => p.status === "in_transit").length,
+    delayed: packages.filter(p => p.status === "delayed").length,
+    delivered: packages.filter(p => p.status === "delivered").length,
+    processing: packages.filter(p => p.status === "processing").length,
+  };
+
+  const onTimeRate = counts.total > 0
+    ? Math.round(((counts.total - counts.delayed) / counts.total) * 100) + "%"
+    : "100%";
+
   const filterOptions = [
-    { value: "all",        label: "All",       count: packages.length },
-    { value: "in_transit", label: "Transit",   count: packages.filter(p => p.status === "in_transit").length },
-    { value: "delayed",    label: "Delayed",   count: packages.filter(p => p.status === "delayed").length },
-    { value: "delivered",  label: "Delivered", count: packages.filter(p => p.status === "delivered").length },
-    { value: "processing", label: "Processing",count: packages.filter(p => p.status === "processing").length },
+    { value: "all",        label: "All",       count: counts.total },
+    { value: "in_transit", label: "Transit",   count: counts.in_transit },
+    { value: "delayed",    label: "Delayed",   count: counts.delayed },
+    { value: "delivered",  label: "Delivered", count: counts.delivered },
+    { value: "processing", label: "Processing",count: counts.processing },
   ];
 
   return (
@@ -204,10 +217,10 @@ export default function Sidebar({ packages, selectedPkg, onSelectPkg, view, onVi
       {/* Business stats */}
       {view === "business" && (
         <div className="p-3 grid grid-cols-2 gap-2" style={{ borderBottom: "1px solid rgba(45,90,45,0.4)" }}>
-          <StatCard icon={Truck}         label="In Transit"  value={STATS.inTransit}  color="#d4a017" />
-          <StatCard icon={AlertTriangle} label="Delayed"     value={STATS.delayed}    color="#e74c3c" />
-          <StatCard icon={CheckCircle2}  label="Delivered"   value={STATS.delivered}  color="#27ae60" />
-          <StatCard icon={Clock}         label="On-Time"     value={STATS.onTimeRate} color="#8e44ad" />
+          <StatCard icon={Truck}         label="In Transit"  value={counts.in_transit} color="#d4a017" />
+          <StatCard icon={AlertTriangle} label="Delayed"     value={counts.delayed}    color="#e74c3c" />
+          <StatCard icon={CheckCircle2}  label="Delivered"   value={counts.delivered}  color="#27ae60" />
+          <StatCard icon={Clock}         label="On-Time"     value={onTimeRate}        color="#8e44ad" />
         </div>
       )}
 
@@ -258,7 +271,12 @@ export default function Sidebar({ packages, selectedPkg, onSelectPkg, view, onVi
 
       {/* Package list */}
       <div className="flex-1 overflow-y-auto p-3">
-        {filtered.length === 0 ? (
+        {loading ? (
+          <div className="text-center text-gray-600 text-xs mt-8 animate-pulse">
+            <RefreshCw size={24} className="mx-auto mb-2 opacity-30 animate-spin" />
+            <p>Syncing with satellite…</p>
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="text-center text-gray-600 text-xs mt-8">
             <Package size={32} className="mx-auto mb-2 opacity-30" />
             <p>No packages found</p>
@@ -278,3 +296,4 @@ export default function Sidebar({ packages, selectedPkg, onSelectPkg, view, onVi
     </div>
   );
 }
+
