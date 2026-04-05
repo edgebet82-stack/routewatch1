@@ -6,29 +6,32 @@ import MapOverlay from "./components/MapLegend";
 import AuthScreen from "./components/AuthScreen";
 import AddPackageModal from "./components/AddPackageModal";
 import DriverSimulator from "./components/DriverSimulator";
+import EmployeeView from "./components/EmployeeView";
 import { PACKAGES } from "./data/packages";
 import { isConfigured, supabase } from "./lib/supabase";
 import {
-  fetchPackages, subscribeToPackages, subscribeToUpdates, getSession, signOut,
+  fetchPackages, subscribeToPackages, subscribeToUpdates,
+  getSession, signOut, fetchDrivers, subscribeToDrivers,
 } from "./lib/db";
 import "./index.css";
 
 export default function App() {
-  const [selectedPkg, setSelectedPkg]   = useState(null);
-  const [view, setView]                 = useState("business");
-  const [packages, setPackages]         = useState([]);
-  const [loading, setLoading]           = useState(true);
-  const [session, setSession]           = useState(null);
-  const [showAdd, setShowAdd]           = useState(false);
-  const [tick, setTick]                 = useState(0);
-  const [demoMode]                      = useState(!isConfigured);
+  const [selectedPkg, setSelectedPkg] = useState(null);
+  const [view,        setView]        = useState("business");
+  const [packages,    setPackages]    = useState([]);
+  const [drivers,     setDrivers]     = useState([]);
+  const [loading,     setLoading]     = useState(true);
+  const [session,     setSession]     = useState(null);
+  const [role,        setRole]        = useState(localStorage.getItem("routewatch_role") || "business");
+  const [showAdd,     setShowAdd]     = useState(false);
+  const [tick,        setTick]        = useState(0);
+  const [demoMode]                    = useState(!isConfigured);
 
   // ── Bootstrap ──────────────────────────────────────────────────────────────
   useEffect(() => {
     if (demoMode) {
       setPackages(PACKAGES);
       setLoading(false);
-      // Simulate live nudges in demo mode
       const iv = setInterval(() => {
         setPackages((prev) => prev.map((pkg) => {
           if (pkg.status !== "in_transit") return pkg;
@@ -46,15 +49,15 @@ export default function App() {
       return () => clearInterval(iv);
     }
 
-    // Real mode — check auth
     getSession().then((s) => {
       setSession(s);
-      loadPackages();
+      if (s) { loadPackages(); loadDrivers(); }
+      else setLoading(false);
     });
 
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, s) => {
       setSession(s);
-      if (s) loadPackages();
+      if (s) { loadPackages(); loadDrivers(); }
     });
 
     return () => authListener.subscription.unsubscribe();
@@ -66,9 +69,11 @@ export default function App() {
     if (demoMode) return;
     const pkgSub    = subscribeToPackages(() => loadPackages());
     const updateSub = subscribeToUpdates(() => loadPackages());
+    const drvSub    = subscribeToDrivers(() => loadDrivers());
     return () => {
       supabase.removeChannel(pkgSub);
       supabase.removeChannel(updateSub);
+      supabase.removeChannel(drvSub);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [demoMode]);
@@ -84,7 +89,15 @@ export default function App() {
     }
   }, []);
 
-  // Keep selected pkg in sync after refreshes
+  const loadDrivers = useCallback(async () => {
+    try {
+      const data = await fetchDrivers();
+      setDrivers(data);
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
   useEffect(() => {
     if (selectedPkg) {
       const updated = packages.find((p) => p.id === selectedPkg.id);
@@ -93,11 +106,35 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [packages]);
 
-  // ── Auth gate (real mode only) ─────────────────────────────────────────────
-  if (!demoMode && !session && view === "business") {
-    return <AuthScreen onAuth={() => {}} />;
+  // ── Auth gate ──────────────────────────────────────────────────────────────
+  if (!demoMode && !session) {
+    return (
+      <AuthScreen onAuth={(selectedRole) => {
+        setRole(selectedRole);
+        getSession().then((s) => {
+          setSession(s);
+          if (s) { loadPackages(); loadDrivers(); }
+        });
+      }} />
+    );
   }
 
+  // ── Driver/Employee view ───────────────────────────────────────────────────
+  if (!demoMode && session && role === "driver") {
+    return (
+      <EmployeeView
+        session={session}
+        onSignOut={async () => {
+          await signOut();
+          setSession(null);
+          localStorage.removeItem("routewatch_role");
+          setRole("business");
+        }}
+      />
+    );
+  }
+
+  // ── Business / Customer view ───────────────────────────────────────────────
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "#0a1f0a", overflow: "hidden" }}>
       <TopBar
@@ -105,12 +142,16 @@ export default function App() {
         onClear={() => setSelectedPkg(null)}
         demoMode={demoMode}
         session={session}
-        onSignOut={async () => { await signOut(); setSession(null); }}
+        onSignOut={async () => {
+          await signOut();
+          setSession(null);
+          localStorage.removeItem("routewatch_role");
+          setRole("business");
+        }}
         onAddPackage={() => setShowAdd(true)}
         view={view}
       />
 
-      {/* Demo mode banner */}
       {demoMode && (
         <div
           className="flex items-center justify-center gap-2 text-xs py-1.5"
@@ -121,7 +162,6 @@ export default function App() {
       )}
 
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-        {/* Sidebar */}
         <div style={{ width: 320, minWidth: 320, display: "flex", flexDirection: "column", overflow: "hidden" }}>
           <Sidebar
             packages={packages}
@@ -134,7 +174,6 @@ export default function App() {
           />
         </div>
 
-        {/* Map */}
         <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
           {loading ? (
             <div className="flex items-center justify-center h-full"
@@ -146,6 +185,7 @@ export default function App() {
               packages={packages}
               selectedPkg={selectedPkg}
               onSelectPkg={(pkg) => setSelectedPkg(selectedPkg?.id === pkg.id ? null : pkg)}
+              drivers={drivers}
             />
           )}
 
@@ -163,7 +203,21 @@ export default function App() {
             </div>
           )}
 
-          {/* Live indicator */}
+          {/* Live driver count badge */}
+          {drivers.filter(d => d.status === "active").length > 0 && (
+            <div style={{
+              position: "absolute", top: 16, right: 16,
+              background: "rgba(39,174,96,0.2)", border: "1px solid #27ae6055",
+              color: "#27ae60", borderRadius: 9999,
+              padding: "5px 12px", fontSize: 11, fontWeight: 700,
+              zIndex: 1000, backdropFilter: "blur(8px)",
+              display: "flex", alignItems: "center", gap: 6,
+            }}>
+              <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#27ae60", animation: "pulse 2s infinite" }} />
+              {drivers.filter(d => d.status === "active").length} Driver{drivers.filter(d => d.status === "active").length > 1 ? "s" : ""} Online
+            </div>
+          )}
+
           <div style={{
             position: "absolute", bottom: 24, left: 16,
             display: "flex", alignItems: "center", gap: 8,
@@ -175,14 +229,12 @@ export default function App() {
             {demoMode ? `Demo Live ${tick > 0 ? `• ${tick * 8}s` : ""}` : "Supabase Live"}
           </div>
 
-          {/* Driver Simulator – only in real mode for businesses */}
           {!demoMode && session && view === "business" && (
             <DriverSimulator packages={packages} onUpdate={loadPackages} />
           )}
         </div>
       </div>
 
-      {/* Add Package Modal */}
       {showAdd && (
         <AddPackageModal
           onClose={() => setShowAdd(false)}
